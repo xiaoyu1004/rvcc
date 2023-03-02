@@ -1,0 +1,7 @@
+[
+{
+  "directory": "/home/yuhongzhang/workspace/rvcc/build",
+  "command": "/usr/bin/gcc  -O3 -g -o CMakeFiles/rvcc.dir/src/main.c.o -c /home/yuhongzhang/workspace/rvcc/src/main.c",
+  "file": "/home/yuhongzhang/workspace/rvcc/src/main.c"
+}
+]
