@@ -3,7 +3,7 @@ project(rvcc)
 
 option(ENBALE_TEST "enable test" OFF)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
 set(srcs src/main.c)
 add_executable(${PROJECT_NAME} ${srcs})
 
