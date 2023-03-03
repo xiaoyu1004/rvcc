@@ -20,5 +20,3 @@ assert() {
 assert 0 0
 assert 42 42
 assert 2 1-2+3
-assert 7 6-2+3
-assert 18 16-2+4

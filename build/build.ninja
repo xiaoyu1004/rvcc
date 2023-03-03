@@ -51,7 +51,7 @@ build cmake_object_order_depends_target_rvcc: phony || CMakeFiles/rvcc.dir
 
 build CMakeFiles/rvcc.dir/src/main.c.o: C_COMPILER__rvcc_Debug /home/yuhongzhang/workspace/rvcc/src/main.c || cmake_object_order_depends_target_rvcc
   DEP_FILE = CMakeFiles/rvcc.dir/src/main.c.o.d
-  FLAGS = -g
+  FLAGS = -g -std=gnu11
   OBJECT_DIR = CMakeFiles/rvcc.dir
   OBJECT_FILE_DIR = CMakeFiles/rvcc.dir/src
 
