@@ -19,4 +19,7 @@ assert() {
 
 assert 0 0
 assert 42 42
-assert 2 1-2+3
+assert 2 '1-2+3'
+assert 41 '12+34-5'
+assert 17 '1-8/(2*2)+3*6'
+assert 47 '7-8/(2*2)+3*6-3+(3)*(4+5)'

@@ -1,2 +1,4 @@
-progress:
-2023/3/3    Lesson 5
+git log --reverse --oneline
+
+date        Lesson ID   commit ID
+2023/3/3       5         8d4d27f
