@@ -128,7 +128,8 @@ typedef enum
     ND_ADD,
     ND_SUB,
     ND_MUL,
-    ND_DIV
+    ND_DIV,
+    ND_NEG
 } NodeKind;
 
 typedef struct Node Node;
@@ -153,6 +154,14 @@ static Node *new_num(int val)
 {
     Node *nd = new_node(ND_NUM);
     nd->val = val;
+    return nd;
+}
+
+static Node *new_unary(NodeKind kind, Node *expr)
+{
+    Node *nd = new_node(kind);
+    nd->lhs = expr;
+    nd->rhs = NULL;
     return nd;
 }
 
@@ -197,21 +206,40 @@ static Node *primary(Token **rest, Token *tok)
     }
 }
 
-// mul = primary (*primary | /primary)
+// unary = (+ | -)unary | primary 
+static Node *unary(Token **rest, Token *tok)
+{
+    Node *nd = NULL;
+    if (str_equal(tok, "+"))
+    {
+        nd = unary(rest, tok->next);
+    }
+    else if (str_equal(tok, "-"))
+    {
+        nd = new_unary(ND_NEG, unary(rest, tok->next));
+    }
+    else
+    {
+        nd = primary(rest, tok);
+    }
+    return nd;
+}
+
+// mul = unary (*unary | /unary)
 static Node *mul(Token **rest, Token *tok)
 {
     // parse primary
-    Node *nd = primary(&tok, tok);
+    Node *nd = unary(&tok, tok);
     // parse binary operator
     while (true)
     {
         if (str_equal(tok, "*"))
         {
-            nd = new_binary(ND_MUL, nd, primary(&tok, tok->next));
+            nd = new_binary(ND_MUL, nd, unary(&tok, tok->next));
         }
         else if (str_equal(tok, "/"))
         {
-            nd = new_binary(ND_DIV, nd, primary(&tok, tok->next));
+            nd = new_binary(ND_DIV, nd, unary(&tok, tok->next));
         }
         else
         {
@@ -271,6 +299,13 @@ static void gen_expr(Node *nd)
     if (nd->kind == ND_NUM)
     {
         printf("    li a0, %d\n", nd->val);
+        return;
+    }
+
+    if (nd->kind == ND_NEG)
+    {
+        gen_expr(nd->lhs);
+        printf("    neg a0, a0\n");
         return;
     }
 
