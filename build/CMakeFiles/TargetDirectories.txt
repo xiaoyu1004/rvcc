@@ -1,3 +1,0 @@
-/home/yuhongzhang/workspace/rvcc/build/CMakeFiles/rvcc.dir
-/home/yuhongzhang/workspace/rvcc/build/CMakeFiles/edit_cache.dir
-/home/yuhongzhang/workspace/rvcc/build/CMakeFiles/rebuild_cache.dir
