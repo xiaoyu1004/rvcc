@@ -49,9 +49,27 @@ cmake_ninja_workdir = /home/yuhongzhang/workspace/rvcc/build/
 
 build cmake_object_order_depends_target_rvcc: phony || CMakeFiles/rvcc.dir
 
+build CMakeFiles/rvcc.dir/src/codegen.c.o: C_COMPILER__rvcc_Debug /home/yuhongzhang/workspace/rvcc/src/codegen.c || cmake_object_order_depends_target_rvcc
+  DEP_FILE = CMakeFiles/rvcc.dir/src/codegen.c.o.d
+  FLAGS = -std=c11 -g
+  OBJECT_DIR = CMakeFiles/rvcc.dir
+  OBJECT_FILE_DIR = CMakeFiles/rvcc.dir/src
+
 build CMakeFiles/rvcc.dir/src/main.c.o: C_COMPILER__rvcc_Debug /home/yuhongzhang/workspace/rvcc/src/main.c || cmake_object_order_depends_target_rvcc
   DEP_FILE = CMakeFiles/rvcc.dir/src/main.c.o.d
-  FLAGS = -g -std=gnu11
+  FLAGS = -std=c11 -g
+  OBJECT_DIR = CMakeFiles/rvcc.dir
+  OBJECT_FILE_DIR = CMakeFiles/rvcc.dir/src
+
+build CMakeFiles/rvcc.dir/src/parse.c.o: C_COMPILER__rvcc_Debug /home/yuhongzhang/workspace/rvcc/src/parse.c || cmake_object_order_depends_target_rvcc
+  DEP_FILE = CMakeFiles/rvcc.dir/src/parse.c.o.d
+  FLAGS = -std=c11 -g
+  OBJECT_DIR = CMakeFiles/rvcc.dir
+  OBJECT_FILE_DIR = CMakeFiles/rvcc.dir/src
+
+build CMakeFiles/rvcc.dir/src/tokenize.c.o: C_COMPILER__rvcc_Debug /home/yuhongzhang/workspace/rvcc/src/tokenize.c || cmake_object_order_depends_target_rvcc
+  DEP_FILE = CMakeFiles/rvcc.dir/src/tokenize.c.o.d
+  FLAGS = -std=c11 -g
   OBJECT_DIR = CMakeFiles/rvcc.dir
   OBJECT_FILE_DIR = CMakeFiles/rvcc.dir/src
 
@@ -63,8 +81,8 @@ build CMakeFiles/rvcc.dir/src/main.c.o: C_COMPILER__rvcc_Debug /home/yuhongzhang
 #############################################
 # Link the executable rvcc
 
-build rvcc: C_EXECUTABLE_LINKER__rvcc_Debug CMakeFiles/rvcc.dir/src/main.c.o
-  FLAGS = -g
+build rvcc: C_EXECUTABLE_LINKER__rvcc_Debug CMakeFiles/rvcc.dir/src/codegen.c.o CMakeFiles/rvcc.dir/src/main.c.o CMakeFiles/rvcc.dir/src/parse.c.o CMakeFiles/rvcc.dir/src/tokenize.c.o
+  FLAGS = -std=c11 -g
   OBJECT_DIR = CMakeFiles/rvcc.dir
   POST_BUILD = :
   PRE_LINK = :

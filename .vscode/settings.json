@@ -3,5 +3,10 @@
     "editor.minimap.enabled": false,
     "files.autoSave": "afterDelay",
     "editor.fontSize": 15,
-    "cmake.debugConfig": {"args": [" -2+--3"]}
+    "editor.formatOnSave": true,
+    "cmake.debugConfig": {
+        "args": [
+            "0*9+5*2==4+4*(6/3)-2;"
+        ]
+    }
 }
