@@ -33,28 +33,29 @@ static Node *new_binary(NodeKind kind, Node *lhs, Node *rhs) {
 
 static Node *new_var_node(Object *obj) {
     Node *nd = new_node(ND_VAR);
-    nd->var = obj;
+    nd->var  = obj;
     return nd;
 }
 
 static Object *new_var_object(char *name) {
     Object *obj = calloc(1, sizeof(Object));
-    obj->name = name;
-    obj->next = g_locals;
-    g_locals = obj;
+    obj->name   = name;
+    obj->next   = g_locals;
+    g_locals    = obj;
     return obj;
 }
 
 static Object *find_var(Token *tok) {
     for (Object *var = g_locals; var != NULL; var = var->next) {
-        if (strlen(var->name) == tok->len && !strncmp(var->name, tok->loc, tok->len)) {
+        if (strlen(var->name) == tok->len &&
+            !strncmp(var->name, tok->loc, tok->len)) {
             return var;
         }
     }
     return NULL;
 }
 
-static bool str_equal(Token *tok, const char *str) {
+bool str_equal(Token *tok, const char *str) {
     return memcmp(tok->loc, str, tok->len) == 0 && str[tok->len] == '\0';
 }
 
@@ -68,7 +69,7 @@ static Token *skip(Token *tok, const char *str) {
 /**
  * Derived formula:
  *      program = stmt*
- *      stmt = express_stmt
+ *      stmt = (return expr;) | express_stmt
  *      express_stmt = expr;
  *      expr = assign
  *      assign = equality (=assign)?
@@ -217,7 +218,14 @@ static Node *express_stmt(Token **rest, Token *tok) {
     return nd;
 }
 
-static Node *stmt(Token **rest, Token *tok) { return express_stmt(rest, tok); }
+static Node *stmt(Token **rest, Token *tok) {
+    if (str_equal(tok, "return")) {
+        Node *nd = new_unary(ND_RETURN, expr(&tok, tok->next));
+        *rest    = skip(tok, ";");
+        return nd;
+    }
+    return express_stmt(rest, tok);
+}
 
 static Node *program(Token **rest, Token *tok) {
     Node head = {};
@@ -236,9 +244,9 @@ Function *parse(Token *tok) {
         error_tok(tok, "extra token");
     }
 
-    Function *prog = calloc(1, sizeof(Function));
-    prog->body = nd;
-    prog->locals = g_locals;
+    Function *prog   = calloc(1, sizeof(Function));
+    prog->body       = nd;
+    prog->locals     = g_locals;
     prog->stack_size = 0;
     return prog;
 }

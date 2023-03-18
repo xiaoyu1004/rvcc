@@ -69,6 +69,14 @@ static Token *new_token(TokenKind kind, const char *start, const char *end) {
     return tok;
 }
 
+static void mark_keyword(Token *tok) {
+    for (Token *t = tok; t->kind != TK_EOF; t = t->next) {
+        if (str_equal(t, "return")) {
+            t->kind = TK_KEYWORD;
+        }
+    }
+}
+
 Token *tokenize(char *p) {
     Token head = {};
     Token *cur = &head;
@@ -100,5 +108,7 @@ Token *tokenize(char *p) {
     }
 
     cur->next = new_token(TK_EOF, p, p);
+    // mark keyword
+    mark_keyword(head.next);
     return head.next;
 }

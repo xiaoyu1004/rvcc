@@ -99,11 +99,17 @@ static void gen_expr(Node *nd) {
 }
 
 static void gen_stmt(Node *nd) {
-    if (nd->kind != ND_EXPR_STMT) {
-        error("invalid expression");
+    switch (nd->kind) {
+        case ND_EXPR_STMT:
+            gen_expr(nd->lhs);
+            return;
+        case ND_RETURN:
+            gen_expr(nd->lhs);
+            printf("    j .L.return\n");
+            return;
+        default:
+            error("invalid expression");
     }
-
-    gen_expr(nd->lhs);
 }
 
 void calculate_var_offset(Function *prog) {
@@ -134,6 +140,8 @@ void codegen(Function *prog) {
         gen_stmt(node);
         assert(Depth == 0);
     }
+
+    printf(".L.return:\n");
 
     printf("    mv sp, fp\n");
     printf("    lw fp, 0(sp)\n");

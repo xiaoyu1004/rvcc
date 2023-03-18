@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-typedef enum { TK_IDENT, TK_PUNCT, TK_NUM, TK_EOF } TokenKind;
+typedef enum { TK_IDENT, TK_PUNCT, TK_NUM, TK_KEYWORD, TK_EOF } TokenKind;
 
 typedef struct Token Token;
 struct Token {
@@ -23,6 +23,8 @@ void error(char *fmt, ...);
 void error_at(const char *loc, const char *fmt, ...);
 void verror_at(const char *loc, const char *fmt, va_list va);
 void error_tok(const Token *tok, const char *fmt, ...);
+
+bool str_equal(Token *tok, const char *str);
 
 Token *tokenize(char *p);
 
@@ -39,7 +41,8 @@ typedef enum {
     ND_LE,
     ND_EXPR_STMT,
     ND_ASSIGN,
-    ND_VAR
+    ND_VAR,
+    ND_RETURN
 } NodeKind;
 
 typedef struct Node Node;

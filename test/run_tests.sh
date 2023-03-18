@@ -66,4 +66,9 @@ assert 5 'a=3;b=4;a=1;a+b;'
 assert 3 'foo=3; foo;'
 assert 74 'foo2=70; bar4=4; foo2 + bar4;'
 
+# return
+assert 1 'return 1; 2; 3;'
+assert 2 '1; return 2; 3;'
+assert 3 '1; 2; return 3;'
+
 echo OK
