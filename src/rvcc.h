@@ -1,3 +1,5 @@
+#define _POSIX_C_SOURCE 200809L
+
 #include <assert.h>
 #include <ctype.h>
 #include <stdarg.h>
@@ -6,7 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-typedef enum { TK_PUNCT, TK_NUM, TK_EOF } TokenKind;
+typedef enum { TK_IDENT, TK_PUNCT, TK_NUM, TK_EOF } TokenKind;
 
 typedef struct Token Token;
 struct Token {
@@ -35,17 +37,36 @@ typedef enum {
     ND_NE,
     ND_LT,
     ND_LE,
-    ND_EXPR_STMT
+    ND_EXPR_STMT,
+    ND_ASSIGN,
+    ND_VAR
 } NodeKind;
 
 typedef struct Node Node;
+
+typedef struct Object Object;
+struct Object {
+    Object *next;
+    char *name;
+    int offset;
+};
+
+typedef struct Function Function;
+struct Function {
+    Node *body;
+    Object *locals;
+    int stack_size;
+};
+
 struct Node {
     NodeKind kind;
     Node *next;
     Node *lhs;
     Node *rhs;
     int val;
+    Object *var;
 };
-Node *parse(Token *tok);
 
-void codegen(Node *nd);
+Function *parse(Token *tok);
+
+void codegen(Function *nd);

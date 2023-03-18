@@ -6,14 +6,15 @@ int main(int argc, char **argv) {
         return -1;
     }
 
+    // char *str = "a=3;a;";
     // Lexical analysis, generate token
     Token *tok = tokenize(argv[1]);
 
     // build ast
-    Node *nd = parse(tok);
+    Function *prog = parse(tok);
 
     // codegen
-    codegen(nd);
+    codegen(prog);
 
     return 0;
 }

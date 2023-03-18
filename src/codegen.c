@@ -1,31 +1,56 @@
 #include "rvcc.h"
 
+// reg byte width
+const int REG_BYTES = 4;
+
 // Record stack depth
 static int Depth = 0;
 
+static int align_to(int N, int align) {
+    return (N + align - 1) / align * align;
+}
+
 static void push() {
-    printf("    addi sp, sp, -4\n");
+    printf("    addi sp, sp, %d\n", -REG_BYTES);
     printf("    sw a0, 0(sp)\n");
     ++Depth;
 }
 
 static void pop(const char *reg) {
     printf("    lw %s, 0(sp)\n", reg);
-    printf("    addi sp, sp, 4\n");
+    printf("    addi sp, sp, %d\n", REG_BYTES);
     --Depth;
+}
+
+static void gen_var_addr(Node *nd) {
+    if (nd->kind == ND_VAR) {
+        printf("    addi a0, fp, %d\n", nd->var->offset);
+        return;
+    }
+    error("not an lvalue");
 }
 
 static void gen_expr(Node *nd) {
     // if ast have only one num node
-    if (nd->kind == ND_NUM) {
-        printf("    li a0, %d\n", nd->val);
-        return;
-    }
-
-    if (nd->kind == ND_NEG) {
-        gen_expr(nd->lhs);
-        printf("    neg a0, a0\n");
-        return;
+    switch (nd->kind) {
+        case ND_NUM:
+            printf("    li a0, %d\n", nd->val);
+            return;
+        case ND_NEG:
+            gen_expr(nd->lhs);
+            printf("    neg a0, a0\n");
+            return;
+        case ND_ASSIGN:
+            gen_var_addr(nd->lhs);
+            push();
+            gen_expr(nd->rhs);
+            pop("a1");
+            printf("    sw a0, 0(a1)\n");
+            return;
+        case ND_VAR:
+            gen_var_addr(nd);
+            printf("    lw a0, 0(a0)\n");
+            return;
     }
 
     // Recurse to the rightmost node
@@ -81,20 +106,39 @@ static void gen_stmt(Node *nd) {
     gen_expr(nd->lhs);
 }
 
-void codegen(Node *nd) {
+void calculate_var_offset(Function *prog) {
+    int offset = 0;
+    for (Object *var = prog->locals; var != NULL; var = var->next) {
+        offset += REG_BYTES;
+        var->offset = -offset;
+    }
+    prog->stack_size = align_to(offset, 16);
+}
+
+void codegen(Function *prog) {
+    // calculate var stack offset
+    calculate_var_offset(prog);
     // declare a global main segment, it is also the start of program
     printf("    .global main\n");
     // main label
     printf("main:\n");
 
+    printf("    addi sp, sp, %d\n", -REG_BYTES);
+    printf("    sw fp, 0(sp)\n");
+    printf("    mv fp, sp\n");
+
+    printf("    addi sp, sp, %d\n", -prog->stack_size);
+
     // code generate
-    for (Node *node = nd; node != NULL; node = node->next) {
+    for (Node *node = prog->body; node != NULL; node = node->next) {
         gen_stmt(node);
         assert(Depth == 0);
     }
 
+    printf("    mv sp, fp\n");
+    printf("    lw fp, 0(sp)\n");
+    printf("    addi sp, sp, %d\n", REG_BYTES);
+
     // ret is the jalr x0, x1, 0 alias instruction, Used to return a subroutine
     printf("    ret\n");
-
-    
 }

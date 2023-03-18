@@ -5,8 +5,9 @@
     "editor.fontSize": 15,
     "editor.formatOnSave": true,
     "cmake.debugConfig": {
-        "args": [
-            "0*9+5*2==4+4*(6/3)-2;"
-        ]
+        "args": []
+    },
+    "files.associations": {
+        "string.h": "c"
     }
 }

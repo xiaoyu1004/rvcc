@@ -55,6 +55,12 @@ static int read_punct(const char *p) {
     return (is_relation ? 2 : 1);
 }
 
+static bool is_ident1(char c) {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
+}
+
+static bool is_ident2(char c) { return is_ident1(c) || (c >= '0' && c <= '9'); }
+
 static Token *new_token(TokenKind kind, const char *start, const char *end) {
     Token *tok = calloc(1, sizeof(Token));
     tok->kind  = kind;
@@ -80,6 +86,14 @@ Token *tokenize(char *p) {
             cur->next     = new_token(TK_PUNCT, p, p + punct_len);
             cur           = cur->next;
             p += punct_len;
+        } else if (is_ident1(*p)) {
+            // [a-zA-Z_][a-zA-Z0-9_]*
+            char *start = p;
+            do {
+                ++p;
+            } while (is_ident2(*p));
+            cur->next = new_token(TK_IDENT, start, p);
+            cur       = cur->next;
         } else {
             error_at(p, "invalid token\n");
         }

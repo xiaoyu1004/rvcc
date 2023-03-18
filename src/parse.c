@@ -1,5 +1,7 @@
 #include "rvcc.h"
 
+Object *g_locals = NULL;
+
 static Node *new_node(NodeKind kind) {
     Node *nd = calloc(1, sizeof(Node));
     nd->kind = kind;
@@ -29,6 +31,29 @@ static Node *new_binary(NodeKind kind, Node *lhs, Node *rhs) {
     return nd;
 }
 
+static Node *new_var_node(Object *obj) {
+    Node *nd = new_node(ND_VAR);
+    nd->var = obj;
+    return nd;
+}
+
+static Object *new_var_object(char *name) {
+    Object *obj = calloc(1, sizeof(Object));
+    obj->name = name;
+    obj->next = g_locals;
+    g_locals = obj;
+    return obj;
+}
+
+static Object *find_var(Token *tok) {
+    for (Object *var = g_locals; var != NULL; var = var->next) {
+        if (strlen(var->name) == tok->len && !strncmp(var->name, tok->loc, tok->len)) {
+            return var;
+        }
+    }
+    return NULL;
+}
+
 static bool str_equal(Token *tok, const char *str) {
     return memcmp(tok->loc, str, tok->len) == 0 && str[tok->len] == '\0';
 }
@@ -44,14 +69,15 @@ static Token *skip(Token *tok, const char *str) {
  * Derived formula:
  *      program = stmt*
  *      stmt = express_stmt
- *      express_stmt = expr ;
- *      expr = equality
+ *      express_stmt = expr;
+ *      expr = assign
+ *      assign = equality (=assign)?
  *      equality = relational (==relational | !=relational)*
  *      relational = add (<add | <=add | >add | >=add)*
  *      add = mul (+mul | -mul)*
  *      mul = unary (*unary | /unary)*
  *      unary = (+ | -)(unary | primary)
- *      primary = expr | num
+ *      primary = expr | num | ident
  */
 static Node *primary(Token **rest, Token *tok);
 static Node *unary(Token **rest, Token *tok);
@@ -59,7 +85,10 @@ static Node *mul(Token **rest, Token *tok);
 static Node *add(Token **rest, Token *tok);
 static Node *relational(Token **rest, Token *tok);
 static Node *equality(Token **rest, Token *tok);
+static Node *assign(Token **rest, Token *tok);
 static Node *expr(Token **rest, Token *tok);
+static Node *stmt(Token **rest, Token *tok);
+static Node *program(Token **rest, Token *tok);
 
 // primary = (expr) | num
 static Node *primary(Token **rest, Token *tok) {
@@ -68,13 +97,22 @@ static Node *primary(Token **rest, Token *tok) {
         Node *nd = expr(&tok, tok->next);
         *rest    = skip(tok, ")");
         return nd;
-    } else if (tok->kind == TK_NUM) {
+    }
+    if (tok->kind == TK_NUM) {
         Node *nd = new_num(tok->val);
         *rest    = tok->next;
         return nd;
-    } else {
-        error_tok(tok, "expected a expression or a num");
     }
+    if (tok->kind == TK_IDENT) {
+        Object *var = find_var(tok);
+        if (var == NULL) {
+            var = new_var_object(strndup(tok->loc, tok->len));
+        }
+        Node *nd = new_var_node(var);
+        *rest    = tok->next;
+        return nd;
+    }
+    error_tok(tok, "expected a expression or a num");
 }
 
 // unary = (+ | -)unary | primary
@@ -161,8 +199,17 @@ static Node *equality(Token **rest, Token *tok) {
     return nd;
 }
 
+static Node *assign(Token **rest, Token *tok) {
+    Node *nd = equality(&tok, tok);
+    if (str_equal(tok, "=")) {
+        nd = new_binary(ND_ASSIGN, nd, assign(&tok, tok->next));
+    }
+    *rest = tok;
+    return nd;
+}
+
 // expr = equality
-static Node *expr(Token **rest, Token *tok) { return equality(rest, tok); }
+static Node *expr(Token **rest, Token *tok) { return assign(rest, tok); }
 
 static Node *express_stmt(Token **rest, Token *tok) {
     Node *nd = new_unary(ND_EXPR_STMT, expr(&tok, tok));
@@ -183,10 +230,15 @@ static Node *program(Token **rest, Token *tok) {
     return head.next;
 }
 
-Node *parse(Token *tok) {
+Function *parse(Token *tok) {
     Node *nd = program(&tok, tok);
     if (tok->kind != TK_EOF) {
         error_tok(tok, "extra token");
     }
-    return nd;
+
+    Function *prog = calloc(1, sizeof(Function));
+    prog->body = nd;
+    prog->locals = g_locals;
+    prog->stack_size = 0;
+    return prog;
 }
