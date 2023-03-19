@@ -68,8 +68,9 @@ static Token *skip(Token *tok, const char *str) {
 
 /**
  * Derived formula:
- *      program = stmt*
- *      stmt = (return expr;) | express_stmt
+ *      program = compound_stmt
+ *      compound_stmt = { stmt* }
+ *      stmt = (return expr;) | compound_stmt | express_stmt
  *      express_stmt = expr;
  *      expr = assign
  *      assign = equality (=assign)?
@@ -89,6 +90,7 @@ static Node *equality(Token **rest, Token *tok);
 static Node *assign(Token **rest, Token *tok);
 static Node *expr(Token **rest, Token *tok);
 static Node *stmt(Token **rest, Token *tok);
+static Node *compound_stmt(Token **rest, Token *tok);
 static Node *program(Token **rest, Token *tok);
 
 // primary = (expr) | num
@@ -224,18 +226,32 @@ static Node *stmt(Token **rest, Token *tok) {
         *rest    = skip(tok, ";");
         return nd;
     }
+    if (str_equal(tok, "{")) {
+        return compound_stmt(rest, tok);
+    }
     return express_stmt(rest, tok);
 }
 
-static Node *program(Token **rest, Token *tok) {
+// compound_stmt = { stmt* }
+static Node *compound_stmt(Token **rest, Token *tok) {
     Node head = {};
     Node *cur = &head;
-    while (tok->kind != TK_EOF) {
+    tok       = skip(tok, "{");
+    while (!str_equal(tok, "}")) {
         cur->next = stmt(&tok, tok);
         cur       = cur->next;
     }
+    tok = skip(tok, "}");
+
+    Node *nd = new_node(ND_BLOCK);
+    nd->body = head.next;
+
     *rest = tok;
-    return head.next;
+    return nd;
+}
+
+static Node *program(Token **rest, Token *tok) {
+    return compound_stmt(rest, tok);
 }
 
 Function *parse(Token *tok) {
