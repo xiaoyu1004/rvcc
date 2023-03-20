@@ -71,7 +71,7 @@ static Token *skip(Token *tok, const char *str) {
  *      program = compound_stmt
  *      compound_stmt = { stmt* }
  *      stmt = (return expr;) | compound_stmt | express_stmt
- *      express_stmt = expr;
+ *      express_stmt = expr?;
  *      expr = assign
  *      assign = equality (=assign)?
  *      equality = relational (==relational | !=relational)*
@@ -215,6 +215,13 @@ static Node *assign(Token **rest, Token *tok) {
 static Node *expr(Token **rest, Token *tok) { return assign(rest, tok); }
 
 static Node *express_stmt(Token **rest, Token *tok) {
+    // ;
+    if (str_equal(tok, ";")) {
+        *rest = tok->next;
+        return new_node(ND_BLOCK);
+    }
+
+    // expr;
     Node *nd = new_unary(ND_EXPR_STMT, expr(&tok, tok));
     *rest    = skip(tok, ";");
     return nd;
