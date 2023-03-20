@@ -70,7 +70,10 @@ static Token *skip(Token *tok, const char *str) {
  * Derived formula:
  *      program = compound_stmt
  *      compound_stmt = { stmt* }
- *      stmt = (return expr;) | compound_stmt | express_stmt
+ *      stmt = (return expr;) | 
+ *              if (expr) stmt (else stmt)? |
+ *              compound_stmt | 
+ *              express_stmt  
  *      express_stmt = expr?;
  *      expr = assign
  *      assign = equality (=assign)?
@@ -228,11 +231,29 @@ static Node *express_stmt(Token **rest, Token *tok) {
 }
 
 static Node *stmt(Token **rest, Token *tok) {
+    // return
     if (str_equal(tok, "return")) {
         Node *nd = new_unary(ND_RETURN, expr(&tok, tok->next));
         *rest    = skip(tok, ";");
         return nd;
     }
+
+    // if (expr) stmt (else stmt)?
+    if (str_equal(tok, "if")) {
+        tok = skip(tok->next, "(");
+        Node *nd = new_node(ND_IF);
+        nd->cond = expr(&tok, tok);
+        tok = skip(tok, ")");
+        nd->then = stmt(&tok, tok);
+        // else
+        if (str_equal(tok, "else")) {
+            nd->els = stmt(&tok, tok->next);
+        }
+        *rest = tok;
+        return nd;
+    }
+
+    // compound_stmt
     if (str_equal(tok, "{")) {
         return compound_stmt(rest, tok);
     }

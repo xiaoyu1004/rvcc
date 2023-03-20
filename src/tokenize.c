@@ -69,9 +69,16 @@ static Token *new_token(TokenKind kind, const char *start, const char *end) {
     return tok;
 }
 
+static bool is_keyword(Token *tok) {
+    static char *keyword[] = {"return", "if", "else"};
+    for (size_t i = 0; i < sizeof(keyword) / sizeof(*keyword); ++i) {
+        return str_equal(tok, keyword[i]);
+    }
+}
+
 static void mark_keyword(Token *tok) {
     for (Token *t = tok; t->kind != TK_EOF; t = t->next) {
-        if (str_equal(t, "return")) {
+        if (is_keyword(tok)) {
             t->kind = TK_KEYWORD;
         }
     }

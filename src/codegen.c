@@ -30,6 +30,11 @@ static void gen_var_addr(Node *nd) {
     error("not an lvalue");
 }
 
+static int count_code_segment() {
+    static int i = 1;
+    return i++;
+}
+
 static void gen_expr(Node *nd) {
     // if ast have only one num node
     switch (nd->kind) {
@@ -100,6 +105,19 @@ static void gen_expr(Node *nd) {
 
 static void gen_stmt(Node *nd) {
     switch (nd->kind) {
+        case ND_IF: {
+            int i = count_code_segment();
+            gen_expr(nd->cond);
+            printf("    beqz a0, .L.else.%d\n", i);
+            gen_stmt(nd->then);
+            printf("    j .L.end.%d\n", i);
+            printf(".L.else.%d:\n", i);
+            if (nd->els) {
+                gen_stmt(nd->els);
+            }
+            printf(".L.end.%d:\n", i);
+            return;
+        }
         case ND_BLOCK:
             for (Node *n = nd->body; n != NULL; n = n->next) {
                 gen_stmt(n);
