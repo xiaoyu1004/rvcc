@@ -70,7 +70,7 @@ static Token *new_token(TokenKind kind, const char *start, const char *end) {
 }
 
 static bool is_keyword(Token *tok) {
-    static char *keyword[] = {"return", "if", "else"};
+    static char *keyword[] = {"return", "if", "else", "for", "while"};
     for (size_t i = 0; i < sizeof(keyword) / sizeof(*keyword); ++i) {
         return str_equal(tok, keyword[i]);
     }

@@ -8,6 +8,10 @@ static Node *new_node(NodeKind kind) {
     nd->next = NULL;
     nd->lhs  = NULL;
     nd->rhs  = NULL;
+    nd->body = NULL;
+    nd->init = NULL;
+    nd->cond = NULL;
+    nd->inc  = NULL;
     return nd;
 }
 
@@ -70,10 +74,12 @@ static Token *skip(Token *tok, const char *str) {
  * Derived formula:
  *      program = compound_stmt
  *      compound_stmt = { stmt* }
- *      stmt = (return expr;) | 
+ *      stmt = (return expr;) |
  *              if (expr) stmt (else stmt)? |
- *              compound_stmt | 
- *              express_stmt  
+ *              for (express_stmt expr? expr?) stmt |
+ *              while (expr) stmt |
+ *              compound_stmt |
+ *              express_stmt
  *      express_stmt = expr?;
  *      expr = assign
  *      assign = equality (=assign)?
@@ -240,15 +246,44 @@ static Node *stmt(Token **rest, Token *tok) {
 
     // if (expr) stmt (else stmt)?
     if (str_equal(tok, "if")) {
-        tok = skip(tok->next, "(");
+        tok      = skip(tok->next, "(");
         Node *nd = new_node(ND_IF);
         nd->cond = expr(&tok, tok);
-        tok = skip(tok, ")");
+        tok      = skip(tok, ")");
         nd->then = stmt(&tok, tok);
         // else
         if (str_equal(tok, "else")) {
             nd->els = stmt(&tok, tok->next);
         }
+        *rest = tok;
+        return nd;
+    }
+
+    // for (express_stmt expr? expr?) stmt
+    if (str_equal(tok, "for")) {
+        tok      = skip(tok->next, "(");
+        Node *nd = new_node(ND_FOR);
+        nd->init = express_stmt(&tok, tok);
+        if (!str_equal(tok, ";")) {
+            nd->cond = expr(&tok, tok);
+        }
+        tok = skip(tok, ";");
+        if (!str_equal(tok, ")")) {
+            nd->inc = expr(&tok, tok);
+        }
+        tok      = skip(tok, ")");
+        nd->then = stmt(&tok, tok);
+        *rest    = tok;
+        return nd;
+    }
+
+    // while (expr) stmt
+    if (str_equal(tok, "while")) {
+        Node *nd = new_node(ND_FOR);
+        tok = skip(tok->next, "(");
+        nd->cond = expr(&tok, tok);
+        tok = skip(tok, ")");
+        nd->then = stmt(&tok, tok);
         *rest = tok;
         return nd;
     }

@@ -98,13 +98,31 @@ static void gen_expr(Node *nd) {
             printf("    slt a0, a0, a1\n");
             break;
         default:
-            error("invalid expression");
+            error("invalid expr");
             break;
     }
 }
 
 static void gen_stmt(Node *nd) {
     switch (nd->kind) {
+        case ND_FOR: {
+            int i = count_code_segment();
+            if (nd->init) {
+                gen_stmt(nd->init);
+            }
+            printf(".L.begin.%d:\n", i);
+            if (nd->cond) {
+                gen_expr(nd->cond);
+                printf("    beqz a0, .L.end.%d\n", i);
+            }
+            gen_stmt(nd->then);
+            if (nd->inc) {
+                gen_expr(nd->inc);
+            }
+            printf("    j .L.begin.%d\n", i);
+            printf(".L.end.%d:\n", i);
+            return;
+        }
         case ND_IF: {
             int i = count_code_segment();
             gen_expr(nd->cond);
@@ -131,7 +149,7 @@ static void gen_stmt(Node *nd) {
             printf("    j .L.return\n");
             return;
         default:
-            error("invalid expression");
+            error("invalid stmt");
     }
 }
 
