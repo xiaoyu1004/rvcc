@@ -85,6 +85,8 @@ static void mark_keyword(Token *tok) {
 }
 
 Token *tokenize(char *p) {
+    current_input = p;
+
     Token head = {};
     Token *cur = &head;
     while (*p) {

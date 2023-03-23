@@ -29,7 +29,7 @@ static void gen_var_addr(Node *nd) {
         printf("    addi a0, fp, %d\n", nd->var->offset);
         return;
     }
-    error("not an lvalue");
+    error_tok(nd->tok, "not an lvalue");
 }
 
 static int count_code_segment() {
@@ -116,7 +116,7 @@ static void gen_expr(Node *nd) {
             printf("    slt a0, a0, a1\n");
             break;
         default:
-            error("invalid expr");
+            error_tok(nd->tok, "invalid expr");
             break;
     }
 }
@@ -169,7 +169,7 @@ static void gen_stmt(Node *nd) {
             printf("    j .L.return\n");
             return;
         default:
-            error("invalid stmt");
+            error_tok(nd->tok, "invalid stmt");
     }
 }
 

@@ -79,6 +79,8 @@ struct Node {
     Node *els;
     Node *init;
     Node *inc;
+
+    Token *tok;
 };
 
 Function *parse(Token *tok);
