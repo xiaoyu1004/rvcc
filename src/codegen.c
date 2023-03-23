@@ -11,6 +11,7 @@ static int align_to(int N, int align) {
 }
 
 static void push() {
+    printf("    # a0 is pressed into a stack\n");
     printf("    addi sp, sp, %d\n", -REG_BYTES);
     printf("    sw a0, 0(sp)\n");
     ++Depth;
@@ -24,6 +25,7 @@ static void pop(const char *reg) {
 
 static void gen_var_addr(Node *nd) {
     if (nd->kind == ND_VAR) {
+        printf("    # Get the variable stack address and store a0\n");
         printf("    addi a0, fp, %d\n", nd->var->offset);
         return;
     }
@@ -39,21 +41,26 @@ static void gen_expr(Node *nd) {
     // if ast have only one num node
     switch (nd->kind) {
         case ND_NUM:
+            printf("    # Assign a value to ao\n");
             printf("    li a0, %d\n", nd->val);
             return;
         case ND_NEG:
             gen_expr(nd->lhs);
+            printf("    # Take the negative of ao\n");
             printf("    neg a0, a0\n");
             return;
         case ND_ASSIGN:
             gen_var_addr(nd->lhs);
             push();
             gen_expr(nd->rhs);
+            printf("    # pop stack to a1\n");
             pop("a1");
+            printf("    # store ao to 0(a1)\n");
             printf("    sw a0, 0(a1)\n");
             return;
         case ND_VAR:
             gen_var_addr(nd);
+            printf("    # load onto a0 from 0(a0)\n");
             printf("    lw a0, 0(a0)\n");
             return;
     }
@@ -65,36 +72,47 @@ static void gen_expr(Node *nd) {
     // Recurse to the leftmost node
     gen_expr(nd->lhs);
     // Pop the right subtree value onto the stack
+    printf("    # pop stack to a1\n");
     pop("a1");
 
     // Judgment operation
     switch (nd->kind) {
         case ND_ADD:
+            printf("    # a0 = a0 + a1\n");
             printf("    add a0, a0, a1\n");  // a0 = a0 + a1
             break;
         case ND_SUB:
+            printf("    # a0 = a0 - a1\n");
             printf("    sub a0, a0, a1\n");  // a0 = a0 - a1
             break;
         case ND_MUL:
+            printf("    # a0 = a0 * a1\n");
             printf("    mul a0, a0, a1\n");  // a0 = a0 * a1
             break;
         case ND_DIV:
+            printf("    # a0 = a0 / a1\n");
             printf("    div a0, a0, a1\n");  // a0 = a0 / a1
             break;
         case ND_EQ:
         case ND_NE:
+            printf("    # a0 = a0 ^ a1\n");
             printf("    xor a0, a0, a1\n");  // a0 = a0 ^ a1
             if (nd->kind == ND_EQ) {
+                printf("    # if a0 == 0, set a0 = 1\n");
                 printf("    seqz a0, a0\n");  // if a0 == 0, set a0 = 1
             } else {
+                printf("    # if a0 != 0, set a0 = 1\n");
                 printf("    snez a0, a0\n");  // if a0 != 0, set a0 = 1
             }
             break;
         case ND_LE:
+            printf("    # if a1 < a0, set a0 = 1\n");
             printf("    slt a0, a1, a0\n");
+            printf("    # a0 = a0 ^ 1\n");
             printf("    xori a0, a0, 1\n");
             break;
         case ND_LT:
+            printf("    # if a0 < a1, set a0 = 1\n");
             printf("    slt a0, a0, a1\n");
             break;
         default:
@@ -113,6 +131,7 @@ static void gen_stmt(Node *nd) {
             printf(".L.begin.%d:\n", i);
             if (nd->cond) {
                 gen_expr(nd->cond);
+                printf("    # if a0 == 0, jump to .L.end.%d\n", i);
                 printf("    beqz a0, .L.end.%d\n", i);
             }
             gen_stmt(nd->then);
@@ -126,6 +145,7 @@ static void gen_stmt(Node *nd) {
         case ND_IF: {
             int i = count_code_segment();
             gen_expr(nd->cond);
+            printf("    # if a0 == 0, jump to .L.else.%d\n", i);
             printf("    beqz a0, .L.else.%d\n", i);
             gen_stmt(nd->then);
             printf("    j .L.end.%d\n", i);
@@ -170,10 +190,13 @@ void codegen(Function *prog) {
     // main label
     printf("main:\n");
 
+    printf("    # press fp onto the stack\n");
     printf("    addi sp, sp, %d\n", -REG_BYTES);
     printf("    sw fp, 0(sp)\n");
+    printf("    # Assign the sp address to fp\n");
     printf("    mv fp, sp\n");
 
+    printf("    # Allocate space on the stack for variables, algin to 16 Byte\n");
     printf("    addi sp, sp, %d\n", -prog->stack_size);
 
     // code generate
@@ -182,7 +205,9 @@ void codegen(Function *prog) {
 
     printf(".L.return:\n");
 
+    printf("    # Release a variable on the stack\n");
     printf("    mv sp, fp\n");
+    printf("    # pop stack onto fp\n");
     printf("    lw fp, 0(sp)\n");
     printf("    addi sp, sp, %d\n", REG_BYTES);
 

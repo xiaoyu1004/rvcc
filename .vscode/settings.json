@@ -6,7 +6,7 @@
     "editor.formatOnSave": true,
     "cmake.debugConfig": {
         "args": [
-            "{ for (;;) {return 3;} return 5; }"
+            "{ i=0; while(i<10) { i=i+1; } return i; }"
         ]
     },
     "files.associations": {
