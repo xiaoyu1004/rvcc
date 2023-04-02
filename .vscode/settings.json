@@ -4,9 +4,10 @@
     "files.autoSave": "afterDelay",
     "editor.fontSize": 16,
     "editor.formatOnSave": true,
+    "C_Cpp.clang_format_path": "/usr/bin/clang-format",
     "cmake.debugConfig": {
         "args": [
-            "{ 1=0;}"
+            "{int x=3; int * y=&x; int** z=&y; return **z; }"
         ]
     },
     "files.associations": {

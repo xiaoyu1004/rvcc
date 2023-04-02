@@ -2,6 +2,21 @@
 
 Object *g_locals = NULL;
 
+static const char *get_ident(const Token *tok) {
+    if (tok->kind != TK_IDENT) {
+        error_tok(tok, "expect a variable name");
+    }
+    return strndup(tok->loc, tok->len);
+}
+
+static bool is_var_decl(Token *tok) {
+    static char *types[] = {"int"};
+    for (size_t i = 0; i < sizeof(types) / sizeof(*types); ++i) {
+        return str_equal(tok, types[i]);
+    }
+    return false;
+}
+
 static Node *new_node(NodeKind kind, Token *tok) {
     Node *nd = calloc(1, sizeof(Node));
     nd->kind = kind;
@@ -38,24 +53,74 @@ static Node *new_binary(NodeKind kind, Node *lhs, Node *rhs, Token *tok) {
     return nd;
 }
 
+static Node *new_add(Node *lhs, Node *rhs, Token *tok) {
+    add_type(lhs);
+    add_type(rhs);
+
+    // num + num
+    if (is_int(lhs->type) && is_int(rhs->type)) {
+        return new_binary(ND_ADD, lhs, rhs, tok);
+    }
+
+    // ptr + ptr
+    if (is_ptr(lhs->type) && is_ptr(rhs->type)) {
+        error_tok(tok, "Both addends cannot be of pointer type");
+    }
+
+    // num + ptr -> ptr + num
+    if (is_int(lhs->type) && is_ptr(rhs->type)) {
+        Node *tmp = lhs;
+        lhs       = rhs;
+        rhs       = tmp;
+    }
+
+    rhs = new_binary(ND_MUL, rhs, new_num(REG_BYTES, tok), tok);
+    return new_binary(ND_ADD, lhs, rhs, tok);
+}
+
+static Node *new_sub(Node *lhs, Node *rhs, Token *tok) {
+    add_type(lhs);
+    add_type(rhs);
+
+    // num - num
+    if (is_int(lhs->type) && is_int(rhs->type)) {
+        return new_binary(ND_SUB, lhs, rhs, tok);
+    }
+
+    // ptr - ptr
+    if (is_ptr(lhs->type) && is_ptr(rhs->type)) {
+        error_tok(tok, "Both addends cannot be of pointer type");
+    }
+
+    // num - ptr -> ptr - num
+    if (is_int(lhs->type) && is_ptr(rhs->type)) {
+        Node *tmp = lhs;
+        lhs       = rhs;
+        rhs       = tmp;
+    }
+
+    rhs = new_binary(ND_MUL, rhs, new_num(-REG_BYTES, tok), tok);
+    return new_binary(ND_ADD, lhs, rhs, tok);
+}
+
 static Node *new_var_node(Object *obj, Token *tok) {
     Node *nd = new_node(ND_VAR, tok);
     nd->var  = obj;
     return nd;
 }
 
-static Object *new_var_object(char *name) {
+static Object *new_var_object(const char *name, Type *type) {
     Object *obj = calloc(1, sizeof(Object));
     obj->name   = name;
     obj->next   = g_locals;
+    obj->type   = type;
     g_locals    = obj;
     return obj;
 }
 
 static Object *find_var(Token *tok) {
     for (Object *var = g_locals; var != NULL; var = var->next) {
-        if (strlen(var->name) == tok->len &&
-            !strncmp(var->name, tok->loc, tok->len)) {
+        if (strlen(var->name) == tok->len && !strncmp(var->name, tok->loc, tok->len)) {
             return var;
         }
     }
@@ -76,22 +141,26 @@ static Token *skip(Token *tok, const char *str) {
 /**
  * Derived formula:
  *      program = compound_stmt
- *      compound_stmt = { stmt* }
+ *      compound_stmt = { (stmt)* }
  *      stmt = (return expr;) |
  *              if (expr) stmt (else stmt)? |
  *              for (express_stmt expr? expr?) stmt |
  *              while (expr) stmt |
  *              compound_stmt |
- *              express_stmt
- *      express_stmt = expr?;
- *      expr = assign
- *      assign = equality (=assign)?
- *      equality = relational (==relational | !=relational)*
- *      relational = add (<add | <=add | >add | >=add)*
- *      add = mul (+mul | -mul)*
- *      mul = unary (*unary | /unary)*
- *      unary = (+ | -)(unary | primary)
- *      primary = expr | num | ident
+ *              express_stmt |
+ *              declaration
+ * declaration = declspec ( declarator (=expr)? (, declarator (=expr)?)*)?;
+ * declspec = int
+ * declarator = "*"* ident
+ * express_stmt = expr?;
+ * expr = assign
+ * assign = equality (=assign)? equality = relational (==relational | !=relational)*
+ * relational = add (<add | <=add | >add | >=add)*
+ * add = mul (+mul | -mul)*
+ * mul = unary (*unary | /unary)*
+ * unary = (+ | - | & | *)(unary | primary)
+ * primary = expr | num | ident args?
+ * args = ()
  */
 static Node *primary(Token **rest, Token *tok);
 static Node *unary(Token **rest, Token *tok);
@@ -101,6 +170,9 @@ static Node *relational(Token **rest, Token *tok);
 static Node *equality(Token **rest, Token *tok);
 static Node *assign(Token **rest, Token *tok);
 static Node *expr(Token **rest, Token *tok);
+static Type *declspec(Token **rest, Token *tok);
+static Type *declarator(Token **rest, Token *tok, Type *);
+static Node *declaration(Token **rest, Token *tok);
 static Node *stmt(Token **rest, Token *tok);
 static Node *compound_stmt(Token **rest, Token *tok);
 static Node *program(Token **rest, Token *tok);
@@ -119,9 +191,17 @@ static Node *primary(Token **rest, Token *tok) {
         return nd;
     }
     if (tok->kind == TK_IDENT) {
+        // func call
+        if (str_equal(tok->next, "(")) {
+            Node *nd      = new_node(ND_FUNCCALL, tok);
+            nd->func_name = strndup(tok->loc, tok->len);
+            *rest         = skip(tok->next->next, ")");
+            return nd;
+        }
+
         Object *var = find_var(tok);
         if (var == NULL) {
-            var = new_var_object(strndup(tok->loc, tok->len));
+            error_tok(tok, "undefine variable");
         }
         Node *nd = new_var_node(var, tok);
         *rest    = tok->next;
@@ -137,6 +217,10 @@ static Node *unary(Token **rest, Token *tok) {
         nd = unary(rest, tok->next);
     } else if (str_equal(tok, "-")) {
         nd = new_unary(ND_NEG, unary(rest, tok->next), tok);
+    } else if (str_equal(tok, "&")) {
+        nd = new_unary(ND_ADDR, unary(rest, tok->next), tok);
+    } else if (str_equal(tok, "*")) {
+        nd = new_unary(ND_DEREF, unary(rest, tok->next), tok);
     } else {
         nd = primary(rest, tok);
     }
@@ -169,9 +253,9 @@ static Node *add(Token **rest, Token *tok) {
     while (true) {
         Token *start = tok;
         if (str_equal(tok, "+")) {
-            nd = new_binary(ND_ADD, nd, mul(&tok, tok->next), start);
+            nd = new_add(nd, mul(&tok, tok->next), start);
         } else if (str_equal(tok, "-")) {
-            nd = new_binary(ND_SUB, nd, mul(&tok, tok->next), start);
+            nd = new_sub(nd, mul(&tok, tok->next), start);
         } else {
             break;
         }
@@ -222,7 +306,7 @@ static Node *assign(Token **rest, Token *tok) {
     Node *nd = equality(&tok, tok);
     if (str_equal(tok, "=")) {
         Token *start = tok;
-        nd = new_binary(ND_ASSIGN, nd, assign(&tok, tok->next), start);
+        nd           = new_binary(ND_ASSIGN, nd, assign(&tok, tok->next), start);
     }
     *rest = tok;
     return nd;
@@ -244,6 +328,61 @@ static Node *express_stmt(Token **rest, Token *tok) {
     nd->lhs  = expr(&tok, tok);
     *rest    = skip(tok, ";");
     return nd;
+}
+
+// declaration = declspec ( declarator (=expr)? (, declarator (=expr)?)* )?;
+static Node *declaration(Token **rest, Token *tok) {
+    Type *base_type = declspec(&tok, tok);
+
+    Node head = {};
+    Node *cur = &head;
+    // count var
+    int i = 0;
+    while (!str_equal(tok, ";")) {
+        if (i++ > 0) {
+            tok = skip(tok, ",");
+        }
+        Type *type  = declarator(&tok, tok, base_type);
+        Object *var = new_var_object(get_ident(type->name), type);
+
+        if (!str_equal(tok, "=")) {
+            continue;
+        }
+
+        Node *lhs = new_var_node(var, type->name);
+        Node *rhs = expr(&tok, tok->next);
+        Node *nd  = new_binary(ND_ASSIGN, lhs, rhs, tok);
+
+        cur->next = new_unary(ND_EXPR_STMT, nd, tok);
+        cur       = cur->next;
+    }
+
+    Node *nd = new_node(ND_BLOCK, tok);
+    nd->body = head.next;
+    *rest    = skip(tok, ";");
+    return nd;
+}
+
+// declspec = int
+static Type *declspec(Token **rest, Token *tok) {
+    *rest = skip(tok, "int");
+    return TypeInt;
+}
+
+// declarator = "*"* ident
+static Type *declarator(Token **rest, Token *tok, Type *type) {
+    while (consume(&tok, tok, "*")) {
+        type = pointer_to(type);
+    }
+
+    if (tok->kind != TK_IDENT) {
+        error_tok(tok, "expect a variable name");
+    }
+
+    // ident
+    type->name = tok;
+    *rest      = tok->next;
+    return type;
 }
 
 static Node *stmt(Token **rest, Token *tok) {
@@ -303,6 +442,12 @@ static Node *stmt(Token **rest, Token *tok) {
     if (str_equal(tok, "{")) {
         return compound_stmt(rest, tok);
     }
+
+    // variable declaration
+    if (is_var_decl(tok)) {
+        return declaration(rest, tok);
+    }
+
     return express_stmt(rest, tok);
 }
 
@@ -316,6 +461,8 @@ static Node *compound_stmt(Token **rest, Token *tok) {
     while (!str_equal(tok, "}")) {
         cur->next = stmt(&tok, tok);
         cur       = cur->next;
+        // add type
+        add_type(cur);
     }
     tok = skip(tok, "}");
 
@@ -325,9 +472,7 @@ static Node *compound_stmt(Token **rest, Token *tok) {
     return nd;
 }
 
-static Node *program(Token **rest, Token *tok) {
-    return compound_stmt(rest, tok);
-}
+static Node *program(Token **rest, Token *tok) { return compound_stmt(rest, tok); }
 
 Function *parse(Token *tok) {
     Node *nd = program(&tok, tok);

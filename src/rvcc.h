@@ -8,6 +8,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+// reg byte width
+#define REG_BYTES 4
+
 typedef enum { TK_IDENT, TK_PUNCT, TK_NUM, TK_KEYWORD, TK_EOF } TokenKind;
 
 typedef struct Token Token;
@@ -25,6 +28,7 @@ void verror_at(const char *loc, const char *fmt, va_list va);
 void error_tok(const Token *tok, const char *fmt, ...);
 
 bool str_equal(Token *tok, const char *str);
+bool consume(Token **rest, Token *tok, const char *str);
 
 Token *tokenize(char *p);
 
@@ -45,15 +49,20 @@ typedef enum {
     ND_RETURN,
     ND_IF,
     ND_FOR,
-    ND_BLOCK
+    ND_BLOCK,
+    ND_ADDR,
+    ND_DEREF,
+    ND_FUNCCALL
 } NodeKind;
 
+typedef struct Type Type;
 typedef struct Node Node;
 
 typedef struct Object Object;
 struct Object {
     Object *next;
-    char *name;
+    Type *type;
+    const char *name;
     int offset;
 };
 
@@ -64,7 +73,17 @@ struct Function {
     int stack_size;
 };
 
+typedef enum TypeKind { TY_INT, TY_PTR } TypeKind;
+
+struct Type {
+    TypeKind kind;
+    Type *base;
+    Token *name;
+};
+
 struct Node {
+    Type *type;
+
     NodeKind kind;
     Node *next;
     Node *lhs;
@@ -81,7 +100,16 @@ struct Node {
     Node *inc;
 
     Token *tok;
+    char *func_name;
 };
+
+extern Type *TypeInt;
+
+bool is_int(Type *type);
+bool is_ptr(Type *type);
+void add_type(Node *nd);
+
+Type *pointer_to(Type *base);
 
 Function *parse(Token *tok);
 

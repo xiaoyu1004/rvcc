@@ -38,6 +38,16 @@ void error_tok(const Token *tok, const char *fmt, ...) {
     verror_at(tok->loc, fmt, va);
 }
 
+bool consume(Token **rest, Token *tok, const char *str) {
+    if (str_equal(tok, str)) {
+        *rest = tok->next;
+        return true;
+    }
+
+    *rest = tok;
+    return false;
+}
+
 static int get_number(Token *tok) {
     if (tok->kind != TK_NUM) {
         error_tok(tok, "expected a number");
@@ -70,10 +80,11 @@ static Token *new_token(TokenKind kind, const char *start, const char *end) {
 }
 
 static bool is_keyword(Token *tok) {
-    static char *keyword[] = {"return", "if", "else", "for", "while"};
+    static char *keyword[] = {"return", "if", "else", "for", "while", "int"};
     for (size_t i = 0; i < sizeof(keyword) / sizeof(*keyword); ++i) {
         return str_equal(tok, keyword[i]);
     }
+    return false;
 }
 
 static void mark_keyword(Token *tok) {

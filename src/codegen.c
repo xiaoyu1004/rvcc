@@ -1,14 +1,11 @@
 #include "rvcc.h"
 
-// reg byte width
-const int REG_BYTES = 4;
-
 // Record stack depth
 static int Depth = 0;
 
-static int align_to(int N, int align) {
-    return (N + align - 1) / align * align;
-}
+static void gen_expr(Node *nd);
+
+static int align_to(int N, int align) { return (N + align - 1) / align * align; }
 
 static void push() {
     printf("    # a0 is pressed into a stack\n");
@@ -23,10 +20,14 @@ static void pop(const char *reg) {
     --Depth;
 }
 
-static void gen_var_addr(Node *nd) {
+static void get_var_addr(Node *nd) {
     if (nd->kind == ND_VAR) {
         printf("    # Get the variable stack address and store a0\n");
         printf("    addi a0, fp, %d\n", nd->var->offset);
+        return;
+    }
+    if (nd->kind == ND_DEREF) {
+        gen_expr(nd->lhs);
         return;
     }
     error_tok(nd->tok, "not an lvalue");
@@ -50,7 +51,7 @@ static void gen_expr(Node *nd) {
             printf("    neg a0, a0\n");
             return;
         case ND_ASSIGN:
-            gen_var_addr(nd->lhs);
+            get_var_addr(nd->lhs);
             push();
             gen_expr(nd->rhs);
             printf("    # pop stack to a1\n");
@@ -59,10 +60,22 @@ static void gen_expr(Node *nd) {
             printf("    sw a0, 0(a1)\n");
             return;
         case ND_VAR:
-            gen_var_addr(nd);
+            get_var_addr(nd);
             printf("    # load onto a0 from 0(a0)\n");
             printf("    lw a0, 0(a0)\n");
             return;
+        case ND_ADDR:
+            get_var_addr(nd->lhs);
+            return;
+        case ND_DEREF:
+            gen_expr(nd->lhs);
+            printf("    # The address in a0 is read and the resulting value is stored in a0\n");
+            printf("    lw a0, 0(a0)\n");
+            return;
+        case ND_FUNCCALL:
+            printf("    # call func %s\n", nd->func_name);
+            printf("    li a0, 0\n");
+            printf("    call %s\n", nd->func_name);
     }
 
     // Recurse to the rightmost node
@@ -191,8 +204,10 @@ void codegen(Function *prog) {
     printf("main:\n");
 
     printf("    # press fp onto the stack\n");
-    printf("    addi sp, sp, %d\n", -REG_BYTES);
+    printf("    addi sp, sp, %d\n", -REG_BYTES * 2);
     printf("    sw fp, 0(sp)\n");
+    printf("    # press ra onto the stack\n");
+    printf("    sw ra, %d(sp)\n", REG_BYTES);
     printf("    # Assign the sp address to fp\n");
     printf("    mv fp, sp\n");
 
@@ -209,7 +224,8 @@ void codegen(Function *prog) {
     printf("    mv sp, fp\n");
     printf("    # pop stack onto fp\n");
     printf("    lw fp, 0(sp)\n");
-    printf("    addi sp, sp, %d\n", REG_BYTES);
+    printf("    lw ra, %d(sp)\n", REG_BYTES);
+    printf("    addi sp, sp, %d\n", REG_BYTES * 2);
 
     // ret is the jalr x0, x1, 0 alias instruction, Used to return a subroutine
     printf("    ret\n");
