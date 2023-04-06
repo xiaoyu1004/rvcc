@@ -68,17 +68,20 @@ struct Object {
 
 typedef struct Function Function;
 struct Function {
+    Function *next;
+    char *name;
     Node *body;
     Object *locals;
     int stack_size;
 };
 
-typedef enum TypeKind { TY_INT, TY_PTR } TypeKind;
+typedef enum TypeKind { TY_INT, TY_PTR, TY_FUNC } TypeKind;
 
 struct Type {
     TypeKind kind;
     Type *base;
     Token *name;
+    Type *ret_type;
 };
 
 struct Node {
@@ -101,6 +104,7 @@ struct Node {
 
     Token *tok;
     char *func_name;
+    Node *args;
 };
 
 extern Type *TypeInt;
@@ -108,6 +112,7 @@ extern Type *TypeInt;
 bool is_int(Type *type);
 bool is_ptr(Type *type);
 void add_type(Node *nd);
+Type *func_type(Type *ret_type);
 
 Type *pointer_to(Type *base);
 

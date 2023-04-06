@@ -7,7 +7,7 @@
     "C_Cpp.clang_format_path": "/usr/bin/clang-format",
     "cmake.debugConfig": {
         "args": [
-            "{int x=3; int * y=&x; int** z=&y; return **z; }"
+            "int main() { return ret32(); } int ret32() { return 32; }"
         ]
     },
     "files.associations": {

@@ -2,7 +2,7 @@
 
 Object *g_locals = NULL;
 
-static const char *get_ident(const Token *tok) {
+static char *get_ident(const Token *tok) {
     if (tok->kind != TK_IDENT) {
         error_tok(tok, "expect a variable name");
     }
@@ -140,7 +140,8 @@ static Token *skip(Token *tok, const char *str) {
 
 /**
  * Derived formula:
- *      program = compound_stmt
+ *      program = function*
+ *      function = declspec declarator compound_stmt
  *      compound_stmt = { (stmt)* }
  *      stmt = (return expr;) |
  *              if (expr) stmt (else stmt)? |
@@ -151,7 +152,9 @@ static Token *skip(Token *tok, const char *str) {
  *              declaration
  * declaration = declspec ( declarator (=expr)? (, declarator (=expr)?)*)?;
  * declspec = int
- * declarator = "*"* ident
+ * declarator = "*"* ident type_suffix
+ * type_suffix = ("()")?
+ *
  * express_stmt = expr?;
  * expr = assign
  * assign = equality (=assign)? equality = relational (==relational | !=relational)*
@@ -159,8 +162,8 @@ static Token *skip(Token *tok, const char *str) {
  * add = mul (+mul | -mul)*
  * mul = unary (*unary | /unary)*
  * unary = (+ | - | & | *)(unary | primary)
- * primary = expr | num | ident args?
- * args = ()
+ * primary = expr | num | ident | func_call
+ * func_call = ident( (expr(,expr)*)? )
  */
 static Node *primary(Token **rest, Token *tok);
 static Node *unary(Token **rest, Token *tok);
@@ -175,7 +178,28 @@ static Type *declarator(Token **rest, Token *tok, Type *);
 static Node *declaration(Token **rest, Token *tok);
 static Node *stmt(Token **rest, Token *tok);
 static Node *compound_stmt(Token **rest, Token *tok);
-static Node *program(Token **rest, Token *tok);
+static Function *function(Token **rest, Token *tok);
+static Function *program(Token **rest, Token *tok);
+
+// func_call = ident( (expr(,expr)*)? )
+static Node *func_call(Token **rest, Token *tok) {
+    Node *nd      = new_node(ND_FUNCCALL, tok);
+    nd->func_name = strndup(tok->loc, tok->len);
+    tok = skip(tok->next, "(");
+
+    Node head = {};
+    Node *cur = &head;
+    while (!str_equal(tok, ")")) {
+        if (cur != &head) {
+            tok = skip(tok, ",");
+        }
+        cur->next = expr(&tok, tok->next->next);
+        cur       = cur->next;
+    }
+    *rest    = skip(tok, ")");
+    nd->args = head.next;
+    return nd;
+}
 
 // primary = (expr) | num
 static Node *primary(Token **rest, Token *tok) {
@@ -193,10 +217,7 @@ static Node *primary(Token **rest, Token *tok) {
     if (tok->kind == TK_IDENT) {
         // func call
         if (str_equal(tok->next, "(")) {
-            Node *nd      = new_node(ND_FUNCCALL, tok);
-            nd->func_name = strndup(tok->loc, tok->len);
-            *rest         = skip(tok->next->next, ")");
-            return nd;
+            return func_call(rest, tok);
         }
 
         Object *var = find_var(tok);
@@ -369,7 +390,19 @@ static Type *declspec(Token **rest, Token *tok) {
     return TypeInt;
 }
 
-// declarator = "*"* ident
+static Type *type_suffix(Token **rest, Token *tok, Type *type) {
+    // type_suffix
+    if (str_equal(tok, "(")) {
+        *rest = skip(tok->next, ")");
+        return func_type(type);
+    }
+
+    *rest = tok;
+    return type;
+}
+
+// declarator = "*"* ident type_suffix
+// type_suffix = ("()")?
 static Type *declarator(Token **rest, Token *tok, Type *type) {
     while (consume(&tok, tok, "*")) {
         type = pointer_to(type);
@@ -378,11 +411,9 @@ static Type *declarator(Token **rest, Token *tok, Type *type) {
     if (tok->kind != TK_IDENT) {
         error_tok(tok, "expect a variable name");
     }
-
     // ident
     type->name = tok;
-    *rest      = tok->next;
-    return type;
+    return type_suffix(rest, tok->next, type);
 }
 
 static Node *stmt(Token **rest, Token *tok) {
@@ -472,17 +503,35 @@ static Node *compound_stmt(Token **rest, Token *tok) {
     return nd;
 }
 
-static Node *program(Token **rest, Token *tok) { return compound_stmt(rest, tok); }
+// declspec declarator compound_stmt
+static Function *function(Token **rest, Token *tok) {
+    Type *base_type = declspec(&tok, tok);
+    Type *type      = declarator(&tok, tok, base_type);
+
+    g_locals         = NULL;
+    Function *func   = calloc(1, sizeof(Function));
+    func->name       = get_ident(type->name);
+    func->body       = compound_stmt(rest, tok);
+    func->locals     = g_locals;
+    func->stack_size = 0;
+    return func;
+}
+
+static Function *program(Token **rest, Token *tok) {
+    Function head;
+    Function *cur = &head;
+    while (tok->kind != TK_EOF) {
+        cur->next = function(&tok, tok);
+        cur       = cur->next;
+    }
+    *rest = tok;
+    return head.next;
+}
 
 Function *parse(Token *tok) {
-    Node *nd = program(&tok, tok);
+    Function *func = program(&tok, tok);
     if (tok->kind != TK_EOF) {
         error_tok(tok, "extra token");
     }
-
-    Function *prog   = calloc(1, sizeof(Function));
-    prog->body       = nd;
-    prog->locals     = g_locals;
-    prog->stack_size = 0;
-    return prog;
+    return func;
 }

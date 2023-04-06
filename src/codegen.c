@@ -3,6 +3,9 @@
 // Record stack depth
 static int Depth = 0;
 
+static const char *arg_regs[] = {"a0", "a1", "a2", "a3", "a4", "a5"};
+static Function *s_func       = NULL;
+
 static void gen_expr(Node *nd);
 
 static int align_to(int N, int align) { return (N + align - 1) / align * align; }
@@ -74,8 +77,18 @@ static void gen_expr(Node *nd) {
             return;
         case ND_FUNCCALL:
             printf("    # call func %s\n", nd->func_name);
-            printf("    li a0, 0\n");
+            int n_args = 0;
+            for (Node *arg = nd->args; arg != NULL; arg = arg->next) {
+                gen_expr(arg);
+                push();
+                n_args++;
+            }
+            // a0->param0 a1->param1 a2->param2 ... a5->param5
+            for (int i = n_args - 1; i >= 0; i--) {
+                pop(arg_regs[i]);
+            }
             printf("    call %s\n", nd->func_name);
+            return;
     }
 
     // Recurse to the rightmost node
@@ -179,7 +192,7 @@ static void gen_stmt(Node *nd) {
             return;
         case ND_RETURN:
             gen_expr(nd->lhs);
-            printf("    j .L.return\n");
+            printf("    j .L.return.%s\n", s_func->name);
             return;
         default:
             error_tok(nd->tok, "invalid stmt");
@@ -187,46 +200,52 @@ static void gen_stmt(Node *nd) {
 }
 
 void calculate_var_offset(Function *prog) {
-    int offset = 0;
-    for (Object *var = prog->locals; var != NULL; var = var->next) {
-        offset += REG_BYTES;
-        var->offset = -offset;
+    for (Function *func = prog; func != NULL; func = func->next) {
+        int offset = 0;
+        for (Object *var = func->locals; var != NULL; var = var->next) {
+            offset += REG_BYTES;
+            var->offset = -offset;
+        }
+        func->stack_size = align_to(offset, 16);
     }
-    prog->stack_size = align_to(offset, 16);
 }
 
 void codegen(Function *prog) {
     // calculate var stack offset
     calculate_var_offset(prog);
-    // declare a global main segment, it is also the start of program
-    printf("    .global main\n");
-    // main label
-    printf("main:\n");
 
-    printf("    # press fp onto the stack\n");
-    printf("    addi sp, sp, %d\n", -REG_BYTES * 2);
-    printf("    sw fp, 0(sp)\n");
-    printf("    # press ra onto the stack\n");
-    printf("    sw ra, %d(sp)\n", REG_BYTES);
-    printf("    # Assign the sp address to fp\n");
-    printf("    mv fp, sp\n");
+    for (Function *func = prog; func != NULL; func = func->next) {
+        s_func = func;
+        // declare a global Function segment, it is also the start of Function
+        printf("    .global %s\n", func->name);
+        // Function label
+        printf("%s:\n", func->name);
 
-    printf("    # Allocate space on the stack for variables, algin to 16 Byte\n");
-    printf("    addi sp, sp, %d\n", -prog->stack_size);
+        printf("    # press fp onto the stack\n");
+        printf("    addi sp, sp, %d\n", -REG_BYTES * 2);
+        printf("    sw fp, 0(sp)\n");
+        printf("    # press ra onto the stack\n");
+        printf("    sw ra, %d(sp)\n", REG_BYTES);
+        printf("    # Assign the sp address to fp\n");
+        printf("    mv fp, sp\n");
 
-    // code generate
-    gen_stmt(prog->body);
-    assert(Depth == 0);
+        printf("    # Allocate space on the stack for variables, algin to 16 Byte\n");
+        printf("    addi sp, sp, %d\n", -func->stack_size);
 
-    printf(".L.return:\n");
+        // code generate
+        gen_stmt(func->body);
+        assert(Depth == 0);
 
-    printf("    # Release a variable on the stack\n");
-    printf("    mv sp, fp\n");
-    printf("    # pop stack onto fp\n");
-    printf("    lw fp, 0(sp)\n");
-    printf("    lw ra, %d(sp)\n", REG_BYTES);
-    printf("    addi sp, sp, %d\n", REG_BYTES * 2);
+        printf(".L.return.%s:\n", func->name);
 
-    // ret is the jalr x0, x1, 0 alias instruction, Used to return a subroutine
-    printf("    ret\n");
+        printf("    # Release a variable on the stack\n");
+        printf("    mv sp, fp\n");
+        printf("    # pop stack onto fp\n");
+        printf("    lw fp, 0(sp)\n");
+        printf("    lw ra, %d(sp)\n", REG_BYTES);
+        printf("    addi sp, sp, %d\n", REG_BYTES * 2);
+
+        // ret is the jalr x0, x1, 0 alias instruction, Used to return a subroutine
+        printf("    ret\n");
+    }
 }

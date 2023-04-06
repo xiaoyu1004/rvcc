@@ -17,6 +17,14 @@ Type *pointer_to(Type *base) {
     return type;
 }
 
+Type *func_type(Type *ret_type) {
+    Type *type = calloc(1, sizeof(Type));
+    type->kind = TY_FUNC;
+    type->name = ret_type->name;
+    type->ret_type = ret_type;
+    return type;
+}
+
 void add_type(Node *nd) {
     if (nd == NULL || nd->type != NULL) {
         return;
