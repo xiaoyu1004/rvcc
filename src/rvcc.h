@@ -71,6 +71,7 @@ struct Function {
     Function *next;
     char *name;
     Node *body;
+    Object *params;
     Object *locals;
     int stack_size;
 };
@@ -82,6 +83,8 @@ struct Type {
     Type *base;
     Token *name;
     Type *ret_type;
+    Type *params;
+    Type *next;
 };
 
 struct Node {
@@ -113,6 +116,7 @@ bool is_int(Type *type);
 bool is_ptr(Type *type);
 void add_type(Node *nd);
 Type *func_type(Type *ret_type);
+Type *copy_type(Type *type);
 
 Type *pointer_to(Type *base);
 

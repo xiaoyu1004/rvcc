@@ -25,6 +25,12 @@ Type *func_type(Type *ret_type) {
     return type;
 }
 
+Type *copy_type(Type *type) {
+    Type *ty = calloc(1, sizeof(Type));
+    *ty = *type;
+    return ty;
+}
+
 void add_type(Node *nd) {
     if (nd == NULL || nd->type != NULL) {
         return;

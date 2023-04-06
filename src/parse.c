@@ -153,7 +153,9 @@ static Token *skip(Token *tok, const char *str) {
  * declaration = declspec ( declarator (=expr)? (, declarator (=expr)?)*)?;
  * declspec = int
  * declarator = "*"* ident type_suffix
- * type_suffix = ("()")?
+ * type_suffix = (func_params?)?
+ * func_params = param(,param)
+ * param = declspec declarator
  *
  * express_stmt = expr?;
  * expr = assign
@@ -185,7 +187,7 @@ static Function *program(Token **rest, Token *tok);
 static Node *func_call(Token **rest, Token *tok) {
     Node *nd      = new_node(ND_FUNCCALL, tok);
     nd->func_name = strndup(tok->loc, tok->len);
-    tok = skip(tok->next, "(");
+    tok           = skip(tok->next, "(");
 
     Node head = {};
     Node *cur = &head;
@@ -193,7 +195,7 @@ static Node *func_call(Token **rest, Token *tok) {
         if (cur != &head) {
             tok = skip(tok, ",");
         }
-        cur->next = expr(&tok, tok->next->next);
+        cur->next = expr(&tok, tok);
         cur       = cur->next;
     }
     *rest    = skip(tok, ")");
@@ -390,11 +392,29 @@ static Type *declspec(Token **rest, Token *tok) {
     return TypeInt;
 }
 
+// type_suffix = (func_params?)?
+// func_params = param(,param)
+// param = declspec declarator
 static Type *type_suffix(Token **rest, Token *tok, Type *type) {
     // type_suffix
     if (str_equal(tok, "(")) {
-        *rest = skip(tok->next, ")");
-        return func_type(type);
+        tok       = tok->next;
+        Type head = {};
+        Type *cur = &head;
+        while (!str_equal(tok, ")")) {
+            if (cur != &head) {
+                tok = skip(tok, ",");
+            }
+            Type *base_type = declspec(&tok, tok);
+            Type *decl_type = declarator(&tok, tok, base_type);
+            cur->next       = copy_type(decl_type);
+            cur             = cur->next;
+        }
+
+        *rest      = skip(tok, ")");
+        Type *ty   = func_type(type);
+        ty->params = head.next;
+        return ty;
     }
 
     *rest = tok;
@@ -402,7 +422,6 @@ static Type *type_suffix(Token **rest, Token *tok, Type *type) {
 }
 
 // declarator = "*"* ident type_suffix
-// type_suffix = ("()")?
 static Type *declarator(Token **rest, Token *tok, Type *type) {
     while (consume(&tok, tok, "*")) {
         type = pointer_to(type);
@@ -412,8 +431,9 @@ static Type *declarator(Token **rest, Token *tok, Type *type) {
         error_tok(tok, "expect a variable name");
     }
     // ident
-    type->name = tok;
-    return type_suffix(rest, tok->next, type);
+    Type *ty = type_suffix(rest, tok->next, type);
+    ty->name = tok;
+    return ty;
 }
 
 static Node *stmt(Token **rest, Token *tok) {
@@ -503,14 +523,23 @@ static Node *compound_stmt(Token **rest, Token *tok) {
     return nd;
 }
 
+static void parse_func_params(Type *params) {
+    if (params) {
+        parse_func_params(params->next);
+        new_var_object(get_ident(params->name), params);
+    }
+}
+
 // declspec declarator compound_stmt
 static Function *function(Token **rest, Token *tok) {
     Type *base_type = declspec(&tok, tok);
     Type *type      = declarator(&tok, tok, base_type);
 
-    g_locals         = NULL;
-    Function *func   = calloc(1, sizeof(Function));
-    func->name       = get_ident(type->name);
+    g_locals       = NULL;
+    Function *func = calloc(1, sizeof(Function));
+    func->name     = get_ident(type->name);
+    parse_func_params(type->params);
+    func->params     = g_locals;
     func->body       = compound_stmt(rest, tok);
     func->locals     = g_locals;
     func->stack_size = 0;

@@ -232,6 +232,12 @@ void codegen(Function *prog) {
         printf("    # Allocate space on the stack for variables, algin to 16 Byte\n");
         printf("    addi sp, sp, %d\n", -func->stack_size);
 
+        int i = 0;
+        for (Object *param = func->params; param != NULL; param = param->next) {
+            printf("    # store %s register val to %s stack address\n", arg_regs[i], param->name);
+            printf("    sw %s, %d(fp)\n", arg_regs[i++], param->offset);
+        }
+
         // code generate
         gen_stmt(func->body);
         assert(Depth == 0);
